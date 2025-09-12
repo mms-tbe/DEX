@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useConnection, useWallet } from './SimpleWalletProvider';
+import { useWallet } from './SimpleWalletProvider';
 import WalletButton from './WalletButton';
 import { Card, Input, Button, Select, Space, Typography, Alert, message, Spin } from 'antd';
 import { SwapOutlined } from '@ant-design/icons';
@@ -36,8 +36,7 @@ const SOLANA_TOKENS = [
 ];
 
 const SimpleSolanaDEX = () => {
-  const { connection } = useConnection();
-  const { publicKey, connected, sendTransaction } = useWallet();
+  const { publicKey, connected, sendTransaction, connection } = useWallet();
   
   const [fromToken, setFromToken] = useState('So11111111111111111111111111111111111111112'); // SOL
   const [toToken, setToToken] = useState('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); // USDC
@@ -92,7 +91,7 @@ const SimpleSolanaDEX = () => {
     } finally {
       setQuoteLoading(false);
     }
-  }, []);
+  }, [connection]);
 
   // Handle amount change with debounced quote fetching
   useEffect(() => {
