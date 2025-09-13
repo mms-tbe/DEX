@@ -15,6 +15,7 @@ const SimpleWalletProvider = ({ children }) => {
     const [publicKey, setPublicKey] = useState(null);
     const [connected, setConnected] = useState(false);
     const [connecting, setConnecting] = useState(false);
+    const [disconnecting, setDisconnecting] = useState(false);
 
     const connection = useMemo(() => new Connection(clusterApiUrl('mainnet-beta'), 'confirmed'), []);
 
@@ -109,19 +110,18 @@ const SimpleWalletProvider = ({ children }) => {
     }, []);
 
     const disconnect = useCallback(async () => {
+        setDisconnecting(true);
         try {
-            setConnecting(true);
             if (window.solana) {
                 await window.solana.disconnect();
             }
             setPublicKey(null);
             setConnected(false);
-            setConnecting(false);
             console.log('Disconnected from wallet');
         } catch (error) {
             console.error('Error disconnecting:', error);
-            setConnecting(false);
-            throw error;
+        } finally {
+            setDisconnecting(false);
         }
     }, []);
 
@@ -143,6 +143,7 @@ const SimpleWalletProvider = ({ children }) => {
         publicKey,
         connected,
         connecting,
+        disconnecting,
         connect: connectPhantom,
         disconnect,
         sendTransaction,

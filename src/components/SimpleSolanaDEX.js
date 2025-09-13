@@ -53,6 +53,32 @@ const SimpleSolanaDEX = () => {
   const [quoteData, setQuoteData] = useState(null);
   const [realBalances, setRealBalances] = useState({});
   const [balancesLoading, setBalancesLoading] = useState(false);
+  const [tokenPrices, setTokenPrices] = useState({});
+
+  const fetchTokenPrices = useCallback(async () => {
+    const tokenSymbols = SOLANA_TOKENS.map(t => t.symbol).join(',');
+    try {
+      const response = await fetch(`https://quote-api.jup.ag/v6/price?ids=${tokenSymbols}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch token prices');
+      }
+      const data = await response.json();
+      const prices = {};
+      if (data.data) {
+        for (const [symbol, priceData] of Object.entries(data.data)) {
+          prices[symbol] = priceData.price;
+        }
+      }
+      setTokenPrices(prices);
+    } catch (error) {
+      console.error("Failed to fetch token prices:", error);
+      setTokenPrices({});
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTokenPrices();
+  }, [fetchTokenPrices]);
 
   const fetchRealBalances = useCallback(async () => {
     if (!connected || !publicKey || !connection || !isReal) {
@@ -325,6 +351,16 @@ const SimpleSolanaDEX = () => {
     return balance.toFixed(2);
   };
 
+  const getUsdValue = (symbol, balance) => {
+    const price = tokenPrices[symbol] || 0;
+    const value = balance * price;
+    if (value === 0) return '$0.00';
+    return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const fromTokenSymbol = getTokenSymbol(fromToken);
+  const fromTokenBalance = isDemo ? (demoBalance[fromTokenSymbol] || 0) : (realBalances[fromTokenSymbol] || 0);
+
   return (
     <div style={{ maxWidth: '650px', margin: '0 auto', padding: '20px' }}>
       {/* Account Mode Alert */}
@@ -368,9 +404,14 @@ const SimpleSolanaDEX = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text strong>From:</Text>
               {(isDemo || (isReal && connected)) && (
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  Balance: {balancesLoading ? <Spin size="small" /> : getDisplayBalanceForSymbol(getTokenSymbol(fromToken))} {getTokenSymbol(fromToken)}
-                </Text>
+                <div style={{ textAlign: 'right' }}>
+                  <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>
+                    Balance: {balancesLoading ? <Spin size="small" /> : getDisplayBalanceForSymbol(fromTokenSymbol)} {fromTokenSymbol}
+                  </Text>
+                  <Text type="secondary" style={{ fontSize: '12px', color: '#888' }}>
+                    {getUsdValue(fromTokenSymbol, fromTokenBalance)}
+                  </Text>
+                </div>
               )}
             </div>
             <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>

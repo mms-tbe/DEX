@@ -6,7 +6,7 @@ import { useWallet } from './SimpleWalletProvider';
 const { Text } = Typography;
 
 const WalletButton = () => {
-    const { publicKey, connected, connecting, connect, disconnect } = useWallet();
+    const { publicKey, connected, connecting, disconnecting, connect, disconnect } = useWallet();
 
     const handleClick = () => {
         if (connected) {
@@ -22,14 +22,15 @@ const WalletButton = () => {
         return `${str.slice(0, 4)}...${str.slice(-4)}`;
     };
 
-    if (connecting) {
+    if (connecting || disconnecting) {
         return (
             <Button 
                 icon={<LoadingOutlined />} 
                 loading
                 disabled
+                danger={disconnecting}
             >
-                Connecting...
+                {connecting ? 'Connecting...' : 'Disconnecting...'}
             </Button>
         );
     }
