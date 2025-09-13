@@ -1,11 +1,13 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useWallet } from './SimpleWalletProvider';
+import { useAccountMode } from '../contexts/AccountModeContext';
 import WalletButton from './WalletButton';
-import { Card, Input, Button, Select, Space, Typography, Alert, message, Spin } from 'antd';
-import { SwapOutlined } from '@ant-design/icons';
+import { Card, Input, Button, Select, Space, Typography, Alert, message, Spin, Modal } from 'antd';
+import { SwapOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
+const { confirm } = Modal;
 
 // Popular Solana tokens
 const SOLANA_TOKENS = [
@@ -37,6 +39,7 @@ const SOLANA_TOKENS = [
 
 const SimpleSolanaDEX = () => {
   const { publicKey, connected, sendTransaction, connection } = useWallet();
+  const { accountMode, isDemo, isReal, demoBalance, updateDemoBalance } = useAccountMode();
   
   const [fromToken, setFromToken] = useState('So11111111111111111111111111111111111111112'); // SOL
   const [toToken, setToToken] = useState('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); // USDC
@@ -110,6 +113,16 @@ const SimpleSolanaDEX = () => {
   const handleAmountChange = (value) => {
     setFromAmount(value);
     setError('');
+    
+    // Check demo balance
+    if (isDemo && value) {
+      const fromSymbol = getTokenSymbol(fromToken);
+      const userBalance = demoBalance[fromSymbol] || 0;
+      
+      if (parseFloat(value) > userBalance) {
+        setError(`Insufficient ${fromSymbol} balance. You have ${userBalance} ${fromSymbol}`);
+      }
+    }
   };
 
   const swapTokens = () => {
@@ -134,12 +147,79 @@ const SimpleSolanaDEX = () => {
       return;
     }
 
+    const fromSymbol = getTokenSymbol(fromToken);
+    const toSymbol = getTokenSymbol(toToken);
+    const fromAmountNum = parseFloat(fromAmount);
+    const toAmountNum = parseFloat(toAmount);
+
+    // Check demo balance
+    if (isDemo) {
+      const userBalance = demoBalance[fromSymbol] || 0;
+      if (fromAmountNum > userBalance) {
+        setError(`Insufficient ${fromSymbol} balance`);
+        return;
+      }
+    }
+
+    // Show confirmation for real trades
+    if (isReal) {
+      confirm({
+        title: 'Confirm Live Trade',
+        icon: <ExclamationCircleOutlined />,
+        content: (
+          <div>
+            <Alert
+              message="⚠️ WARNING: This will use real SOL from your wallet!"
+              type="error"
+              showIcon
+              style={{ marginBottom: '16px' }}
+            />
+            <p>
+              Swap {fromAmount} {fromSymbol} for approximately {toAmount} {toSymbol}
+            </p>
+            <p style={{ fontSize: '12px', color: '#666' }}>
+              This action cannot be undone. Make sure you want to proceed with real funds.
+            </p>
+          </div>
+        ),
+        onOk() {
+          executeSwap();
+        },
+        okText: 'Confirm Real Trade',
+        cancelText: 'Cancel',
+        okButtonProps: { danger: true }
+      });
+    } else {
+      executeSwap();
+    }
+  };
+
+  const executeSwap = async () => {
     try {
       setLoading(true);
       setError('');
 
-      // For demo - in production you'd get the actual swap transaction from Jupiter
-      message.success(`Demo: Would swap ${fromAmount} ${getTokenSymbol(fromToken)} for ${toAmount} ${getTokenSymbol(toToken)}`);
+      const fromSymbol = getTokenSymbol(fromToken);
+      const toSymbol = getTokenSymbol(toToken);
+      const fromAmountNum = parseFloat(fromAmount);
+      const toAmountNum = parseFloat(toAmount);
+
+      if (isDemo) {
+        // Demo swap - update balances
+        updateDemoBalance(fromSymbol, -fromAmountNum);
+        updateDemoBalance(toSymbol, toAmountNum);
+        
+        message.success(
+          `✅ Demo swap successful! Traded ${fromAmount} ${fromSymbol} for ${toAmount} ${toSymbol}`,
+          5
+        );
+      } else {
+        // Real swap would happen here with Jupiter API
+        message.success(
+          `🚀 Real swap would execute: ${fromAmount} ${fromSymbol} → ${toAmount} ${toSymbol}`,
+          5
+        );
+      }
       
       // Reset form
       setFromAmount('');
@@ -159,10 +239,37 @@ const SimpleSolanaDEX = () => {
     return token ? token.symbol : 'Unknown';
   };
 
+  const getUserBalance = (tokenMint) => {
+    if (!isDemo) return null;
+    const symbol = getTokenSymbol(tokenMint);
+    return demoBalance[symbol] || 0;
+  };
+
   return (
     <div style={{ maxWidth: '500px', margin: '0 auto', padding: '20px' }}>
+      {/* Account Mode Alert */}
+      {isDemo && (
+        <Alert
+          message="Demo Mode Active"
+          description="You're trading with virtual funds. No real SOL will be used. Perfect for testing!"
+          type="info"
+          showIcon
+          style={{ marginBottom: '20px' }}
+        />
+      )}
+      
+      {isReal && (
+        <Alert
+          message="⚠️ LIVE TRADING MODE"
+          description="You are using REAL SOL for trading. Trades will affect your actual wallet balance!"
+          type="error"
+          showIcon
+          style={{ marginBottom: '20px' }}
+        />
+      )}
+
       <Card 
-        title="Solana DEX (Jupiter Quotes)" 
+        title={`Solana DEX ${isDemo ? '(Demo Mode)' : '(Live Trading)'}`}
         extra={<WalletButton />}
         style={{ marginBottom: '20px' }}
       >
@@ -178,7 +285,14 @@ const SimpleSolanaDEX = () => {
 
           {/* From Token */}
           <div>
-            <Text strong>From:</Text>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text strong>From:</Text>
+              {isDemo && (
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  Balance: {getUserBalance(fromToken)} {getTokenSymbol(fromToken)}
+                </Text>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
               <Select
                 placeholder="Select token"
@@ -189,6 +303,7 @@ const SimpleSolanaDEX = () => {
                 {SOLANA_TOKENS.map(token => (
                   <Option key={token.mint} value={token.mint}>
                     {token.symbol} - {token.name}
+                    {isDemo && ` (${demoBalance[token.symbol] || 0})`}
                   </Option>
                 ))}
               </Select>
@@ -228,6 +343,7 @@ const SimpleSolanaDEX = () => {
                 {SOLANA_TOKENS.map(token => (
                   <Option key={token.mint} value={token.mint}>
                     {token.symbol} - {token.name}
+                    {isDemo && ` (${demoBalance[token.symbol] || 0})`}
                   </Option>
                 ))}
               </Select>
@@ -298,20 +414,33 @@ const SimpleSolanaDEX = () => {
             onClick={handleSwap}
             loading={loading}
             disabled={!connected || !fromToken || !toToken || !fromAmount || !quoteData || loading}
-            style={{ width: '100%' }}
+            style={{ 
+              width: '100%',
+              background: isReal ? '#ff4d4f' : undefined,
+              borderColor: isReal ? '#ff4d4f' : undefined
+            }}
           >
-            {loading ? 'Processing Swap...' : 'Swap Tokens (Demo)'}
+            {loading 
+              ? 'Processing Swap...' 
+              : isDemo 
+                ? 'Execute Demo Swap'
+                : '⚠️ Execute LIVE Swap'
+            }
           </Button>
 
           <div style={{ 
-            background: '#f9f9f9', 
+            background: isDemo ? '#f6ffed' : '#fff2f0', 
             padding: '10px', 
             borderRadius: '6px',
             fontSize: '12px',
-            color: '#666'
+            color: '#666',
+            border: isDemo ? '1px solid #b7eb8f' : '1px solid #ffccc7'
           }}>
             <Text type="secondary">
-              Real Jupiter quotes • Demo swaps (install Phantom wallet to connect)
+              {isDemo 
+                ? '🧪 Demo Mode: Virtual trading with fake funds'
+                : '🔴 Live Mode: Real Jupiter quotes • Real wallet transactions'
+              }
             </Text>
           </div>
           

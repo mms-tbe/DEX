@@ -1,43 +1,74 @@
 import React from 'react';
-import { Button, Dropdown, Space } from 'antd';
-import { DownOutlined } from '@ant-design/icons';
+import { Button, Typography } from 'antd';
+import { WalletOutlined, DisconnectOutlined, LoadingOutlined } from '@ant-design/icons';
 import { useWallet } from './SimpleWalletProvider';
 
+const { Text } = Typography;
+
 const WalletButton = () => {
-  const { publicKey, connected, connect, disconnect } = useWallet();
+    const { publicKey, connected, connecting, connect, disconnect } = useWallet();
 
-  const handleConnect = () => {
-    connect();
-  };
+    const handleClick = () => {
+        if (connected) {
+            disconnect();
+        } else {
+            connect();
+        }
+    };
 
-  const walletMenu = {
-    items: [
-      {
-        key: '1',
-        label: 'Disconnect',
-        onClick: disconnect
-      }
-    ]
-  };
+    const formatAddress = (address) => {
+        if (!address) return '';
+        const str = address.toString();
+        return `${str.slice(0, 4)}...${str.slice(-4)}`;
+    };
 
-  if (connected && publicKey) {
+    if (connecting) {
+        return (
+            <Button 
+                icon={<LoadingOutlined />} 
+                loading
+                disabled
+            >
+                Connecting...
+            </Button>
+        );
+    }
+
+    if (connected && publicKey) {
+        return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ 
+                    padding: '4px 8px', 
+                    background: '#f6ffed', 
+                    border: '1px solid #b7eb8f',
+                    borderRadius: '6px',
+                    fontSize: '12px'
+                }}>
+                    <Text type="success" strong>
+                        {formatAddress(publicKey)}
+                    </Text>
+                </div>
+                <Button 
+                    icon={<DisconnectOutlined />}
+                    onClick={handleClick}
+                    size="small"
+                    danger
+                >
+                    Disconnect
+                </Button>
+            </div>
+        );
+    }
+
     return (
-      <Dropdown menu={walletMenu} trigger={['click']}>
-        <Button type="primary">
-          <Space>
-            {publicKey.toString().slice(0, 4)}...{publicKey.toString().slice(-4)}
-            <DownOutlined />
-          </Space>
+        <Button 
+            type="primary"
+            icon={<WalletOutlined />}
+            onClick={handleClick}
+        >
+            Connect Phantom
         </Button>
-      </Dropdown>
     );
-  }
-
-  return (
-    <Button type="primary" onClick={handleConnect}>
-      Connect Phantom Wallet
-    </Button>
-  );
 };
 
 export default WalletButton;
