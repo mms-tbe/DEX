@@ -22,6 +22,12 @@ const SimpleWalletProvider = ({ children }) => {
     // Auto-connect on page load if previously connected
     useEffect(() => {
         const autoConnect = async () => {
+            const userDisconnected = localStorage.getItem('user-disconnected') === 'true';
+            if (userDisconnected) {
+                console.log('User previously disconnected, skipping auto-connect.');
+                return;
+            }
+
             try {
                 if (window.solana && window.solana.isPhantom) {
                     setConnecting(true);
@@ -95,6 +101,7 @@ const SimpleWalletProvider = ({ children }) => {
                 const response = await window.solana.connect();
                 setPublicKey(response.publicKey);
                 setConnected(true);
+                localStorage.removeItem('user-disconnected');
                 setConnecting(false);
                 console.log('Connected to Phantom wallet:', response.publicKey.toString());
                 return response.publicKey;
@@ -117,6 +124,7 @@ const SimpleWalletProvider = ({ children }) => {
             }
             setPublicKey(null);
             setConnected(false);
+            localStorage.setItem('user-disconnected', 'true');
             console.log('Disconnected from wallet');
         } catch (error) {
             console.error('Error disconnecting:', error);
