@@ -4,6 +4,7 @@ import { useAccountMode } from '../contexts/AccountModeContext';
 import WalletButton from './WalletButton';
 import { Card, Input, Button, Select, Space, Typography, Alert, message, Spin, Modal } from 'antd';
 import { SwapOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { PublicKey } from '@solana/web3.js';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -50,6 +51,58 @@ const SimpleSolanaDEX = () => {
   const [error, setError] = useState('');
   const [slippage, setSlippage] = useState(1);
   const [quoteData, setQuoteData] = useState(null);
+  const [realBalances, setRealBalances] = useState({});
+  const [balancesLoading, setBalancesLoading] = useState(false);
+
+  const fetchRealBalances = useCallback(async () => {
+    if (!connected || !publicKey || !connection || !isReal) {
+      setRealBalances({});
+      return;
+    }
+
+    setBalancesLoading(true);
+    try {
+      const balances = {};
+      const publicKeyObj = new PublicKey(publicKey);
+
+      await Promise.all(SOLANA_TOKENS.map(async (token) => {
+        try {
+          if (token.symbol === 'SOL') {
+            const solBalance = await connection.getBalance(publicKeyObj);
+            balances[token.symbol] = solBalance / Math.pow(10, token.decimals);
+          } else {
+            const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKeyObj, {
+              mint: new PublicKey(token.mint)
+            });
+
+            if (tokenAccounts.value.length > 0) {
+              const accountInfo = tokenAccounts.value[0].account.data.parsed.info;
+              balances[token.symbol] = accountInfo.tokenAmount.uiAmount || 0;
+            } else {
+              balances[token.symbol] = 0;
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to fetch balance for ${token.symbol}`, e);
+          balances[token.symbol] = 0;
+        }
+      }));
+
+      setRealBalances(balances);
+    } catch (error) {
+      console.error('Failed to fetch real balances:', error);
+      setError('Could not load wallet balances.');
+      setRealBalances({});
+    } finally {
+      setBalancesLoading(false);
+    }
+  }, [connected, publicKey, connection, isReal]);
+
+  useEffect(() => {
+    if (isReal) {
+      fetchRealBalances();
+    }
+  }, [isReal, fetchRealBalances]);
 
   // Get Jupiter quote
   const getJupiterQuote = useCallback(async (inputMint, outputMint, amount, slippageBps = 100) => {
@@ -114,13 +167,16 @@ const SimpleSolanaDEX = () => {
     setFromAmount(value);
     setError('');
     
-    // Check demo balance
+    const fromSymbol = getTokenSymbol(fromToken);
     if (isDemo && value) {
-      const fromSymbol = getTokenSymbol(fromToken);
       const userBalance = demoBalance[fromSymbol] || 0;
-      
       if (parseFloat(value) > userBalance) {
         setError(`Insufficient ${fromSymbol} balance. You have ${userBalance} ${fromSymbol}`);
+      }
+    } else if (isReal && value && connected) {
+      const userBalance = realBalances[fromSymbol] || 0;
+      if (parseFloat(value) > userBalance) {
+        setError(`Insufficient ${fromSymbol} balance. You have ${userBalance.toFixed(6)} ${fromSymbol}`);
       }
     }
   };
@@ -152,13 +208,19 @@ const SimpleSolanaDEX = () => {
     const fromAmountNum = parseFloat(fromAmount);
     const toAmountNum = parseFloat(toAmount);
 
-    // Check demo balance
+    // Check balance
     if (isDemo) {
       const userBalance = demoBalance[fromSymbol] || 0;
       if (fromAmountNum > userBalance) {
         setError(`Insufficient ${fromSymbol} balance`);
         return;
       }
+    } else if (isReal && connected) {
+        const userBalance = realBalances[fromSymbol] || 0;
+        if (fromAmountNum > userBalance) {
+            setError(`Insufficient ${fromSymbol} balance`);
+            return;
+        }
     }
 
     // Show confirmation for real trades
@@ -245,8 +307,16 @@ const SimpleSolanaDEX = () => {
     return demoBalance[symbol] || 0;
   };
 
+  const getDisplayBalanceForSymbol = (symbol) => {
+    const balance = isDemo ? (demoBalance[symbol] || 0) : (realBalances[symbol] || 0);
+    if (balance > 0 && balance < 0.01) {
+      return balance.toFixed(6);
+    }
+    return balance.toFixed(2);
+  };
+
   return (
-    <div style={{ maxWidth: '500px', margin: '0 auto', padding: '20px' }}>
+    <div style={{ maxWidth: '650px', margin: '0 auto', padding: '20px' }}>
       {/* Account Mode Alert */}
       {isDemo && (
         <Alert
@@ -271,7 +341,7 @@ const SimpleSolanaDEX = () => {
       <Card 
         title={`Solana DEX ${isDemo ? '(Demo Mode)' : '(Live Trading)'}`}
         extra={<WalletButton />}
-        style={{ marginBottom: '20px' }}
+        style={{ marginBottom: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
       >
         <Space direction="vertical" style={{ width: '100%' }} size="large">
           
@@ -287,9 +357,9 @@ const SimpleSolanaDEX = () => {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text strong>From:</Text>
-              {isDemo && (
+              {(isDemo || (isReal && connected)) && (
                 <Text type="secondary" style={{ fontSize: '12px' }}>
-                  Balance: {getUserBalance(fromToken)} {getTokenSymbol(fromToken)}
+                  Balance: {balancesLoading ? <Spin size="small" /> : getDisplayBalanceForSymbol(getTokenSymbol(fromToken))} {getTokenSymbol(fromToken)}
                 </Text>
               )}
             </div>
@@ -303,7 +373,7 @@ const SimpleSolanaDEX = () => {
                 {SOLANA_TOKENS.map(token => (
                   <Option key={token.mint} value={token.mint}>
                     {token.symbol} - {token.name}
-                    {isDemo && ` (${demoBalance[token.symbol] || 0})`}
+                    {(isDemo || (isReal && connected)) && ` (${getDisplayBalanceForSymbol(token.symbol)})`}
                   </Option>
                 ))}
               </Select>
@@ -343,7 +413,7 @@ const SimpleSolanaDEX = () => {
                 {SOLANA_TOKENS.map(token => (
                   <Option key={token.mint} value={token.mint}>
                     {token.symbol} - {token.name}
-                    {isDemo && ` (${demoBalance[token.symbol] || 0})`}
+                    {(isDemo || (isReal && connected)) && ` (${getDisplayBalanceForSymbol(token.symbol)})`}
                   </Option>
                 ))}
               </Select>
