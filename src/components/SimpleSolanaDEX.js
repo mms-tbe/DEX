@@ -104,6 +104,16 @@ const SimpleSolanaDEX = () => {
     }
   }, [isReal, fetchRealBalances]);
 
+  useEffect(() => {
+    if (!connected) {
+      setRealBalances({});
+      setFromAmount('');
+      setToAmount('');
+      setError('');
+      setQuoteData(null);
+    }
+  }, [connected]);
+
   // Get Jupiter quote
   const getJupiterQuote = useCallback(async (inputMint, outputMint, amount, slippageBps = 100) => {
     if (!amount || parseFloat(amount) <= 0) return null;

@@ -16,7 +16,7 @@ const SimpleWalletProvider = ({ children }) => {
     const [connected, setConnected] = useState(false);
     const [connecting, setConnecting] = useState(false);
 
-    const connection = useMemo(() => new Connection(clusterApiUrl('devnet'), 'confirmed'), []);
+    const connection = useMemo(() => new Connection(clusterApiUrl('mainnet-beta'), 'confirmed'), []);
 
     // Auto-connect on page load if previously connected
     useEffect(() => {
