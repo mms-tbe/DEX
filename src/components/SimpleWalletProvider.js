@@ -17,7 +17,10 @@ const SimpleWalletProvider = ({ children }) => {
     const [connecting, setConnecting] = useState(false);
     const [disconnecting, setDisconnecting] = useState(false);
 
-    const connection = useMemo(() => new Connection(clusterApiUrl('mainnet-beta'), 'confirmed'), []);
+    const connection = useMemo(() => {
+        const rpcUrl = process.env.REACT_APP_SOLANA_RPC_HOST || clusterApiUrl('mainnet-beta');
+        return new Connection(rpcUrl, 'confirmed');
+    }, []);
 
     // Auto-connect on page load if previously connected
     useEffect(() => {

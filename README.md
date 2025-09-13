@@ -2,6 +2,29 @@
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
+## Solana RPC Configuration
+
+For the application to reliably connect to the Solana blockchain and fetch real-time data like wallet balances, it needs a dedicated RPC (Remote Procedure Call) endpoint. Public endpoints are heavily rate-limited and can result in connection failures (like `403 Forbidden` errors).
+
+### Steps to Configure
+
+1.  **Get a RPC URL:** Obtain a free or paid RPC URL from a dedicated provider such as:
+    *   [Helius](https://helius.dev/)
+    *   [QuickNode](https://www.quicknode.com/solana)
+    *   [Alchemy](https://www.alchemy.com/solana)
+
+2.  **Create a `.env` file:** In the root of the project, create a new file named `.env`. You can do this by copying the example file:
+    ```sh
+    cp .env.example .env
+    ```
+
+3.  **Set the Environment Variable:** Open the `.env` file and add your RPC URL to the `REACT_APP_SOLANA_RPC_HOST` variable:
+    ```
+    REACT_APP_SOLANA_RPC_HOST=https://your-rpc-provider-url.com/with-your-api-key
+    ```
+
+After adding the `.env` file, you will need to restart your development server for the changes to take effect.
+
 ## Available Scripts
 
 In the project directory, you can run:
